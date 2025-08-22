@@ -1,0 +1,12 @@
+# A name for your Cloudflare Worker project
+name = "MiniTV"
+
+# The main entry point for your Worker script
+main = "worker.js"
+
+# Required for Cloudflare to handle updates correctly
+compatibility_date = "2025-08-22"
+
+# Specifies the directory containing your static frontend files (HTML, CSS, JS)
+[site]
+bucket = "./public"
