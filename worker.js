@@ -12,9 +12,9 @@ const API_SITES = {
         detail: 'http://cj.rycjapi.com',
     },
     ffzy: {
-        api: 'http://ffzy5.tv',
+        api: 'https://cj.ffzyapi.com',
         name: '非凡影视',
-        detail: 'http://ffzy5.tv',
+        detail: 'https://cj.ffzyapi.com',
     },
 };
 
