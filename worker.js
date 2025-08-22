@@ -54,7 +54,7 @@ async function handleEvent(event) {
 async function handleSearch(request) {
     const url = new URL(request.url);
     const searchQuery = url.searchParams.get('wd');
-    const source = url.searchParams.get('source') || 'heimuer';
+    const source = url.searchParams.get('source') || 'dytt';
     const customApi = url.searchParams.get('customApi') || '';
     try {
         const apiUrl = customApi 
@@ -75,7 +75,7 @@ async function handleSearch(request) {
 async function handleDetail(request) {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
-    const source = url.searchParams.get('source') || 'heimuer';
+    const source = url.searchParams.get('source') || 'dytt';
     const customApi = url.searchParams.get('customApi') || '';
     if (!id) return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400 });
 
