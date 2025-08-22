@@ -1,7 +1,4 @@
-// 從 CDN 匯入 itty-router
-import { Router } from './itty-router.js';
-
-// API 站點設定保持不變
+// API 站點設定
 const API_SITES = {
     dytt: {
         api: 'http://caiji.dyttzyapi.com',
@@ -15,23 +12,43 @@ const API_SITES = {
     },
 };
 
-// 初始化路由器
-const router = Router();
+// 监听 fetch 事件
+addEventListener('fetch', event => {
+    event.respondWith(handleRequest(event.request));
+});
 
 /**
- * 處理搜尋請求的函數
- * GET /api/search?wd=...&source=...
+ * 统一的请求处理器
  */
-router.get('/api/search', async (request) => {
-    const { query } = request; // itty-router 會自動解析查詢參數
-    const searchQuery = query.wd;
-    const source = query.source || 'heimuer';
-    const customApi = query.customApi || '';
+async function handleRequest(request) {
+    const url = new URL(request.url);
+
+    // 使用 if/else 进行路由判断
+    if (url.pathname === '/api/search') {
+        return handleSearch(request);
+    }
+
+    if (url.pathname === '/api/detail') {
+        return handleDetail(request);
+    }
+    
+    // 对于 API 路由之外的请求，Cloudflare Pages 会自动处理静态资源
+    // 这里返回一个提示，表示 API 服务器正在运行
+    return new Response('API server is running. Static content is handled by Pages.', { status: 200 });
+}
+
+/**
+ * 处理 /api/search 的逻辑
+ */
+async function handleSearch(request) {
+    const url = new URL(request.url);
+    const searchQuery = url.searchParams.get('wd');
+    const source = url.searchParams.get('source') || 'heimuer';
+    const customApi = url.searchParams.get('customApi') || '';
 
     try {
         const apiUrl = customApi
             ? `${customApi}/api.php/provide/vod/?ac=list&wd=${encodeURIComponent(searchQuery)}`
-            // 修正：確保自訂 API 也有搜尋參數
             : `${API_SITES[source].api}/api.php/provide/vod/?ac=list&wd=${encodeURIComponent(searchQuery)}`;
 
         const response = await fetch(apiUrl, {
@@ -41,56 +58,38 @@ router.get('/api/search', async (request) => {
                 Accept: 'application/json',
             },
         });
-        if (!response.ok) {
-            throw new Error('API request failed with status: ' + response.status);
-        }
+        if (!response.ok) throw new Error('API request failed');
         
-        const data = await response.json(); // 直接解析為 JSON
-
-        return new Response(JSON.stringify(data), {
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-            },
+        const data = await response.text();
+        return new Response(data, {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });
+
     } catch (error) {
-        console.error("Search API Error:", error);
-        const errorResponse = {
-            code: 400,
-            msg: '搜索服务暂时不可用，请稍后再试',
-            list: [],
-        };
-        return new Response(JSON.stringify(errorResponse), {
+        const errorResponse = JSON.stringify({ code: 400, msg: '搜索服务暂时不可用', list: [] });
+        return new Response(errorResponse, {
             status: 400,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-            },
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });
     }
-});
+}
 
 /**
- * 處理影片詳情請求的函數
- * GET /api/detail?id=...&source=...
+ * 处理 /api/detail 的逻辑
  */
-router.get('/api/detail', async (request) => {
-    const { query } = request;
-    const id = query.id;
-    const source = query.source || 'heimuer';
-    const customApi = query.customApi || '';
+async function handleDetail(request) {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    const source = url.searchParams.get('source') || 'heimuer';
+    const customApi = url.searchParams.get('customApi') || '';
 
-    // 如果沒有 ID，返回錯誤
-    if (!id) {
-        return new Response(JSON.stringify({ error: 'Missing id parameter' }), { status: 400 });
-    }
+    if (!id) return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400 });
 
     try {
         const detailPageUrl = customApi 
             ? `${customApi}/index.php/vod/detail/id/${id}.html` 
             : `${API_SITES[source].detail}/index.php/vod/detail/id/${id}.html`;
             
-        // 使用代理來抓取，避免 CORS 問題
         const fetchUrl = `https://r.jina.ai/${detailPageUrl}`;
         const response = await fetch(fetchUrl);
         const html = await response.text();
@@ -101,29 +100,13 @@ router.get('/api/detail', async (request) => {
             matches = matches.map(link => link.split('(')[1]);
         } else {
             matches = html.match(/\$https?:\/\/[^"'\s]+?\.m3u8/g) || [];
-            matches = matches.map(link => link.substring(1)); // 移除开头的 $
+            matches = matches.map(link => link.substring(1));
         }
         
-        const data = {
-            episodes: matches,
-            detailUrl: detailPageUrl,
-        };
-
-        return new Response(JSON.stringify(data), {
-            headers: { 'Content-Type': 'application/json' },
-        });
+        const data = JSON.stringify({ episodes: matches, detailUrl: detailPageUrl });
+        return new Response(data, { headers: { 'Content-Type': 'application/json' } });
 
     } catch (error) {
-        console.error("Detail API Error:", error);
-        return new Response(JSON.stringify({ error: 'Failed to fetch details.' }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'Failed to fetch details' }), { status: 500 });
     }
-});
-
-
-// 處理所有其他未匹配的路由 (404 Not Found)
-router.all('*', () => new Response('404, not found!', { status: 404 }));
-
-// 將 fetch 事件監聽器指向路由器的 handle 方法
-addEventListener('fetch', (event) => {
-    event.respondWith(router.handle(event.request));
-});
+}
