@@ -10,3 +10,8 @@ compatibility_date = "2025-08-22"
 # Specifies the directory containing your static frontend files (HTML, CSS, JS)
 [site]
 bucket = "./public"
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.js"]
+fallthrough = true
