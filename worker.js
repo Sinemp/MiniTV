@@ -1,5 +1,5 @@
 // 從 CDN 匯入 itty-router
-import { Router } from 'itty-router';
+import { Router } from 'https://esm.sh/itty-router';
 
 // API 站點設定保持不變
 const API_SITES = {
