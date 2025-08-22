@@ -1,7 +1,7 @@
 // 等待整个 HTML 文档加载并解析完成后再执行脚本
 document.addEventListener('DOMContentLoaded', function() {
 
-    let currentApiSource = localStorage.getItem('currentApiSource') || 'heimuer';
+    let currentApiSource = localStorage.getItem('currentApiSource') || 'dytt';
     let customApiUrl = localStorage.getItem('customApiUrl') || '';
 
     // 初始化时检查是否使用自定义接口
