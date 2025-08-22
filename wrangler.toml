@@ -1,5 +1,5 @@
 # A name for your Cloudflare Worker project
-name = "MiniTV"
+name = "minitv"
 
 # The main entry point for your Worker script
 main = "worker.js"
