@@ -11,7 +11,3 @@ compatibility_date = "2025-08-22"
 [site]
 bucket = "./public"
 
-[[rules]]
-type = "ESModule"
-globs = ["**/*.js"]
-fallthrough = true
