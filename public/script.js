@@ -33,11 +33,10 @@ async function testSiteAvailability(source) {
 
 function updateSiteStatus(isAvailable) {
     const statusEl = document.getElementById('siteStatus');
-    if (isAvailable) {
-        statusEl.innerHTML = '<span class="text-green-500">●</span> 可用';
-    } else {
-        statusEl.innerHTML = '<span class="text-red-500">●</span> 不可用';
-    }
+    // 使用 textContent 避免 XSS
+    statusEl.textContent = isAvailable ? ' ● 可用' : ' ● 不可用';
+    statusEl.classList.toggle('text-green-500', isAvailable);
+    statusEl.classList.toggle('text-red-500', !isAvailable);
 }
 
 document.getElementById('apiSource').addEventListener('change', async function(e) {
@@ -48,11 +47,10 @@ document.getElementById('apiSource').addEventListener('change', async function(e
         customApiInput.classList.remove('hidden');
         customApiUrl = document.getElementById('customApiUrl').value;
         localStorage.setItem('customApiUrl', customApiUrl);
-        // 自定义接口不立即测试可用性
-        document.getElementById('siteStatus').innerHTML = '<span class="text-gray-500">●</span> 待测试';
+        document.getElementById('siteStatus').textContent = ' ● 待测试';
+        document.getElementById('siteStatus').className = 'ml-2 text-gray-500';
     } else {
         customApiInput.classList.add('hidden');
-        // 非自定义接口立即测试可用性
         showToast('正在测试站点可用性...', 'info');
         const isAvailable = await testSiteAvailability(currentApiSource);
         updateSiteStatus(isAvailable);
@@ -72,7 +70,6 @@ document.getElementById('apiSource').addEventListener('change', async function(e
     document.getElementById('searchInput').value = '';
 });
 
-// 修改自定义接口输入框的事件监听
 document.getElementById('customApiUrl').addEventListener('blur', async function(e) {
     customApiUrl = e.target.value;
     localStorage.setItem('customApiUrl', customApiUrl);
@@ -90,7 +87,6 @@ document.getElementById('customApiUrl').addEventListener('blur', async function(
     }
 });
 
-// 初始化显示当前站点代码和状态
 document.getElementById('currentCode').textContent = currentApiSource;
 testSiteAvailability(currentApiSource).then(updateSiteStatus);
 
@@ -108,31 +104,31 @@ function showToast(message, type = 'error') {
     toast.className = `fixed top-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 ${bgColor} text-white`;
     toastMessage.textContent = message;
 
-    // 显示提示
     toast.style.opacity = '1';
     toast.style.transform = 'translateX(-50%) translateY(0)';
 
-    // 3秒后自动隐藏
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(-50%) translateY(-100%)';
     }, 3000);
 }
 
-// 添加显示/隐藏 loading 的函数
 function showLoading() {
-    const loading = document.getElementById('loading');
-    loading.style.display = 'flex';
+    document.getElementById('loading').style.display = 'flex';
 }
 
 function hideLoading() {
-    const loading = document.getElementById('loading');
-    loading.style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
 }
 
 async function search() {
     showLoading();
     const query = document.getElementById('searchInput').value;
+    if (!query) {
+        showToast('请输入搜索内容', 'info');
+        hideLoading();
+        return;
+    }
     const apiParams = currentApiSource === 'custom'
         ? '&customApi=' + encodeURIComponent(customApiUrl)
         : '&source=' + currentApiSource;
@@ -142,23 +138,45 @@ async function search() {
         const data = await response.json();
 
         if (data.code === 400) {
-            showToast(data.msg);
+            showToast(data.msg || '搜索失败');
             return;
         }
 
-        // 显示结果区域，调整搜索区域
         document.getElementById('searchArea').classList.remove('flex-1');
         document.getElementById('searchArea').classList.add('mb-8');
         document.getElementById('resultsArea').classList.remove('hidden');
 
         const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = data.list.map(item => `
-            <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer p-6 h-fit" onclick="showDetails('${item.vod_id}','${item.vod_name}')">
-                <h3 class="text-xl font-semibold mb-3">${item.vod_name}</h3>
-                <p class="text-gray-400 text-sm mb-2">${item.type_name}</p>
-                <p class="text-gray-400 text-sm">${item.vod_remarks}</p>
-            </div>
-        `).join('');
+        resultsDiv.innerHTML = ''; // Clear previous results
+
+        if (!data.list || data.list.length === 0) {
+            resultsDiv.textContent = '未找到相关结果。';
+            return;
+        }
+        
+        data.list.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer p-6 h-fit';
+            card.onclick = () => showDetails(item.vod_id, item.vod_name);
+
+            const title = document.createElement('h3');
+            title.className = 'text-xl font-semibold mb-3';
+            title.textContent = item.vod_name;
+
+            const type = document.createElement('p');
+            type.className = 'text-gray-400 text-sm mb-2';
+            type.textContent = item.type_name;
+
+            const remarks = document.createElement('p');
+            remarks.className = 'text-gray-400 text-sm';
+            remarks.textContent = item.vod_remarks;
+
+            card.appendChild(title);
+            card.appendChild(type);
+            card.appendChild(remarks);
+
+            resultsDiv.appendChild(card);
+        });
     } catch (error) {
         showToast('搜索请求失败，请稍后重试');
     } finally {
@@ -166,7 +184,7 @@ async function search() {
     }
 }
 
-async function showDetails(id,vod_name) {
+async function showDetails(id, vod_name) {
     showLoading();
     try {
         const apiParams = currentApiSource === 'custom'
@@ -181,17 +199,24 @@ async function showDetails(id,vod_name) {
         const modalContent = document.getElementById('modalContent');
 
         modalTitle.textContent = vod_name;
-        modalContent.innerHTML = `
-            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                ${data.episodes.map((episode, index) => `
-                    <button onclick="playVideo('${episode}','${vod_name}')"
-                            class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg transition-colors text-center">
-                        第${index + 1}集
-                    </button>
-                `).join('')}
-            </div>
-        `;
+        modalContent.innerHTML = '';
 
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2';
+
+        if (!data.episodes || data.episodes.length === 0) {
+            gridContainer.textContent = '未找到可播放的剧集。';
+        } else {
+            data.episodes.forEach((episode, index) => {
+                const button = document.createElement('button');
+                button.className = 'px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg transition-colors text-center';
+                button.textContent = `第${index + 1}集`;
+                button.onclick = (event) => playVideo(event, episode, vod_name, data.episodes);
+                gridContainer.appendChild(button);
+            });
+        }
+
+        modalContent.appendChild(gridContainer);
         modal.classList.remove('hidden');
     } catch (error) {
         showToast('获取详情失败，请稍后重试');
@@ -202,83 +227,67 @@ async function showDetails(id,vod_name) {
 
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
-    // 清除 iframe 内容
     document.getElementById('modalContent').innerHTML = '';
 }
 
-function playVideo(url,vod_name) {
+function playVideo(event, url, vod_name) {
     showLoading();
     const modalContent = document.getElementById('modalContent');
-    const currentTitle = modalTitle.textContent.split(' - ')[0];
-    const currentHtml = modalContent.innerHTML;
-
-    // 从当前点击的按钮获取集数
+    const modalTitle = document.getElementById('modalTitle');
     const episodeNumber = event.target.textContent.replace(/[^0-9]/g, '');
 
-    // 更新标题显示
-    modalTitle.textContent = vod_name + " - 第" + episodeNumber + "集";
+    modalTitle.textContent = `${vod_name} - 第${episodeNumber}集`;
 
-    // 先移除现有的视频播放器（如果存在）
-    const existingPlayer = modalContent.querySelector('.video-player');
-    if (existingPlayer) {
-        existingPlayer.remove();
-    }
+    let playerContainer = modalContent.querySelector('.video-player-container');
+    
+    // 如果還沒有播放器結構，就建立它
+    if (!playerContainer) {
+        const episodesContainer = modalContent.querySelector('.grid');
+        
+        playerContainer = document.createElement('div');
+        playerContainer.className = 'video-player-container space-y-6';
 
-    // 如果是第一次播放，保存集数列表
-    if (!modalContent.querySelector('.episodes-list')) {
-        modalContent.innerHTML = `
-            <div class="space-y-6">
-                <div class="video-player">
-                    <iframe
-                        src="https://hoplayer.com/index.html?url=${url}&autoplay=true"
-                        width="100%"
-                        height="600"
-                        frameborder="0"
-                        scrolling="no"
-                        allowfullscreen="true"
-                        onload="hideLoading()">
-                    </iframe>
-                </div>
-                <div class="episodes-list mt-6">
-                    ${currentHtml}
-                </div>
-            </div>
-        `;
-    } else {
-        // 如果已经有集数列表，只更新视频播放器
-        const episodesList = modalContent.querySelector('.episodes-list');
-        modalContent.innerHTML = `
-            <div class="space-y-6">
-                <div class="video-player">
-                    <iframe
-                        src="https://hoplayer.com/index.html?url=${url}&autoplay=true"
-                        width="100%"
-                        height="600"
-                        frameborder="0"
-                        scrolling="no"
-                        allowfullscreen="true"
-                        onload="hideLoading()">
-                    </iframe>
-                </div>
-                <div class="episodes-list mt-6">
-                    ${episodesList.innerHTML}
-                </div>
-            </div>
-        `;
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'video-player';
+        const iframe = document.createElement('iframe');
+        iframe.width = "100%";
+        iframe.height = "600";
+        iframe.frameBorder = "0";
+        iframe.scrolling = "no";
+        iframe.allowFullscreen = true;
+        iframe.onload = () => hideLoading();
+        playerDiv.appendChild(iframe);
+
+        const episodesListDiv = document.createElement('div');
+        episodesListDiv.className = 'episodes-list mt-6';
+        episodesListDiv.appendChild(episodesContainer); 
+
+        playerContainer.appendChild(playerDiv);
+        playerContainer.appendChild(episodesListDiv);
+        
+        modalContent.innerHTML = '';
+        modalContent.appendChild(playerContainer);
     }
+    
+    // 更新或設定 iframe 的 src
+    const iframe = modalContent.querySelector('iframe');
+    if (iframe && iframe.src.includes(encodeURIComponent(url))) {
+        hideLoading();
+        return;
+    }
+    iframe.src = `https://hoplayer.com/index.html?url=${encodeURIComponent(url)}&autoplay=true`;
 }
 
-// 点击外部关闭设置面板
+
 document.addEventListener('click', function(e) {
     const panel = document.getElementById('settingsPanel');
-    const settingsButton = document.querySelector('button[onclick="toggleSettings()"]');
+    const settingsButton = document.querySelector('button[onclick^="toggleSettings"]');
 
-    if (!panel.contains(e.target) && !settingsButton.contains(e.target) && panel.classList.contains('show')) {
+    if (panel && settingsButton && !panel.contains(e.target) && !settingsButton.contains(e.target) && panel.classList.contains('show')) {
         panel.classList.remove('show');
     }
 });
 
-// 回车搜索
 document.getElementById('searchInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         search();
